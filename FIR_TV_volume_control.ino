@@ -25,7 +25,7 @@ A0 is from microphone analog output.
 #define LED                13  
 #define SWITCH_READ        8
 #define SWITCH_SEND        7
-int AmbientSoundLevel = 280;            // Microphone sensor initial value
+float AmbientSoundLevel = 280;            // Microphone sensor initial value // was int
 const int sampleWindow = 50;          // Sample window width in mS (50 mS = 20Hz)
 long time_sent = 0;
 long send_interval = 000;
@@ -48,8 +48,10 @@ int MUTE_LEVEL_MIN = 0;
 //FIR_FILTER_IMPULSE_RESPONSE array is based on a design (the value represent the behaviour of the filter)
 //static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.4,0.3,0.2,0.1,0.05}; 
 
-static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.5,0.45,0.4,0.35,0.3,0.25,0.2,0.15,0.1,0.05}; 
-static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.3,0.45,0.4,0.35,0.3,0.25,0.2,0.15,0.1,0.05}; 
+//static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.5,0.45,0.4,0.35,0.3,0.25,0.2,0.15,0.1,0.05}; 
+static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.2500,0.1500,0.1250,0.1000,0.0900,0.0850,0.0775,0.0650,0.0350,0.0225
+
+}; 
 
 
 float filteredOut = 0.0;
@@ -88,9 +90,9 @@ void setup()
   else{
     Serial.println("regular mode"); // zoe mode
 
-    NOISE_LEVEL_MAX = 200; //340      280 for big bang around people  //big bang zoe level 150
-    NOISE_LEVEL_MIN = 100; //220
-    MUTE_LEVEL_MIN = 50;
+    NOISE_LEVEL_MAX = 180; //340      280 for big bang around people  //big bang zoe level 150
+    NOISE_LEVEL_MIN = 80; //220
+    MUTE_LEVEL_MIN = 40;
     digitalWrite(LED, LOW); // LED off
     bias = 0.7;
   }
@@ -124,15 +126,15 @@ void loop()
       //delay(200);
       Serial.println("LOWERing volume...");
       int t = 1;
-      if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 150)){ // compare to noise level threshold you decide
+      if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 60)){ // compare to noise level threshold you decide
         t = 4;
               Serial.println("doin it four");
       }
-      else if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 100)){ // compare to noise level threshold you decide
+      else if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 40)){ // compare to noise level threshold you decide
         t = 3;
               Serial.println("doin it 3");
       }
-      else if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 50)){ // compare to noise level threshold you decide
+      else if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 20)){ // compare to noise level threshold you decide
         t = 2;
               Serial.println("doin it 2");
       }
@@ -141,7 +143,7 @@ void loop()
         IrSender.sendSony(0x30, 0x13, 2, 15); //volume down
         lowerCount = lowerCount + 1;
         if(t>1){
-          delay(25); //sony recieves in 24ms
+          delay(100); //sony recieves in 24ms
         }
       }
     }
@@ -178,14 +180,14 @@ void loop()
 int getAmbientSoundLevel()
 {
   unsigned long startMillis; // Start of sample window
-  unsigned int peakToPeak = 0;   // peak-to-peak level
-  unsigned int signalMax = 0;
-  unsigned int signalMin = 1024;
-  unsigned int sample;
+  float peakToPeak = 0.0f;   // peak-to-peak level
+  float signalMax = 0.0f;
+  float signalMin = 1024;
+  float sample = 0.0f; // was unsigned int
 
   unsigned int samples[100];             // Array to store samples
-  int sampleAvg = 0;
-  long sampleSum = 0;
+  float sampleAvg = 0.0; //was int
+  float sampleSum = 0.0; //was long
  
   for (int i = 0; i < 20; i++) {   
     startMillis = millis(); // Start of sample window
@@ -193,9 +195,10 @@ int getAmbientSoundLevel()
     while (millis() - startMillis < sampleWindow) // collect data for 50 mS  
     {
       sample = analogRead(0);
+      //Serial.print("sample: ");
       //Serial.println(sample);
 
-      if (sample < 1024 && sample > 0)  // toss out spurious readings
+      if (sample < 1024.0 && sample > 0.0)  // toss out spurious readings
       {
         if (sample > signalMax)
         {
@@ -208,16 +211,21 @@ int getAmbientSoundLevel()
       }
     }
     peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
-    samples[i] = peakToPeak;
+    samples[i] = static_cast<double>(peakToPeak);
+     Serial.print("samples II: ");
+    Serial.println(samples[i]);
 
   }
   for (int i = 0; i < 20; i++) {
-    sampleSum = sampleSum + samples[i];
+  sampleAvg = static_cast<double>(sampleSum)/100;
+    sampleSum = static_cast<double>(sampleSum) + static_cast<double>(samples[i]);
   }
 
   sampleAvg = sampleSum/20; //1s sample avg
   Serial.print("sampleAvg: ");
   Serial.println(sampleAvg);
+  Serial.print("samples i: ");
+  Serial.println(samples[19]);
   //sampleAvg = (sampleAvg * bias) + (AmbientSoundLevel * (1- bias));
   FIRFilter_calc(&fir, sampleAvg);
   filteredOut=fir.out;
