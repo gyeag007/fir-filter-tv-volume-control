@@ -28,7 +28,7 @@ A0 is from microphone analog output.
 float AmbientSoundLevel = 280;            // Microphone sensor initial value // was int
 const int sampleWindow = 50;          // Sample window width in mS (50 mS = 20Hz)
 long time_sent = 0;
-long send_interval = 000;
+long send_interval = 4250;
 float bias = 0.7;
 int loudMode = LOW;
 int avgSampleSum = 0;
@@ -47,11 +47,11 @@ int MUTE_LEVEL_MIN = 0;
 //define the variable in the stack memory, including declaration. The value of this
 //FIR_FILTER_IMPULSE_RESPONSE array is based on a design (the value represent the behaviour of the filter)
 //static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.4,0.3,0.2,0.1,0.05}; 
+//static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.4,0.25,0.2,0.1,0.05}; 
 
 //static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.5,0.45,0.4,0.35,0.3,0.25,0.2,0.15,0.1,0.05}; 
-static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.2500,0.1500,0.1250,0.1000,0.0900,0.0850,0.0775,0.0650,0.0350,0.0225
-
-}; 
+static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.2500,0.1500,0.1250,0.1000,0.0900,0.0850,0.0775,0.0650,0.0350,0.0225}; 
+//static float FIR_FILTER_IMPULSE_RESPONSE[FIR_FILTER_LENGTH]={0.2500,0.1500,0.1250,0.1000,0.0900,0.0850,0.0775,0.0650,0.0350,0.0225}; 
 
 
 float filteredOut = 0.0;
@@ -90,9 +90,9 @@ void setup()
   else{
     Serial.println("regular mode"); // zoe mode
 
-    NOISE_LEVEL_MAX = 180; //340      280 for big bang around people  //big bang zoe level 150
-    NOISE_LEVEL_MIN = 80; //220
-    MUTE_LEVEL_MIN = 40;
+    NOISE_LEVEL_MAX = 55; //340      280 for big bang around people  //big bang zoe level 150
+    NOISE_LEVEL_MIN = 25; //220  //setting to 70 to avoid raising volume repeat from bug that makes samples and sapmle avg 75
+    MUTE_LEVEL_MIN = 15;
     digitalWrite(LED, LOW); // LED off
     bias = 0.7;
   }
@@ -111,11 +111,15 @@ void setup()
  
 void loop()
 {
-  if(millis() - time_sent >= send_interval){
-    
     AmbientSoundLevel = getAmbientSoundLevel();
     Serial.print("Ambient sound level: ");
     Serial.println(AmbientSoundLevel);
+
+  if(millis() - time_sent >= send_interval){
+    
+    //AmbientSoundLevel = getAmbientSoundLevel();
+    //Serial.print("Ambient sound level: ");
+    //Serial.println(AmbientSoundLevel);
 
     //AmbientSoundLevel = (AmbientSoundLevel * bias) + (prevSampleAvg * (1 - bias));
 
@@ -126,15 +130,15 @@ void loop()
       //delay(200);
       Serial.println("LOWERing volume...");
       int t = 1;
-      if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 60)){ // compare to noise level threshold you decide
+      if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 30)){ // compare to noise level threshold you decide
         t = 4;
               Serial.println("doin it four");
       }
-      else if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 40)){ // compare to noise level threshold you decide
+      else if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 20)){ // compare to noise level threshold you decide
         t = 3;
               Serial.println("doin it 3");
       }
-      else if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 20)){ // compare to noise level threshold you decide
+      else if (AmbientSoundLevel > (NOISE_LEVEL_MAX + 15)){ // compare to noise level threshold you decide
         t = 2;
               Serial.println("doin it 2");
       }
@@ -180,14 +184,14 @@ void loop()
 int getAmbientSoundLevel()
 {
   unsigned long startMillis; // Start of sample window
-  float peakToPeak = 0.0f;   // peak-to-peak level
-  float signalMax = 0.0f;
-  float signalMin = 1024;
-  float sample = 0.0f; // was unsigned int
+  int peakToPeak = 0;   // peak-to-peak level
+  int signalMax = 0;
+  int signalMin = 1024;
+  int sample = 0; // was unsigned int
 
-  unsigned int samples[100];             // Array to store samples
-  float sampleAvg = 0.0; //was int
-  float sampleSum = 0.0; //was long
+  unsigned int samples[20];             // Array to store samples// maybe the issue is this array is too large, was 100
+  int sampleAvg = 0; //was int
+  long sampleSum = 0; //was long
  
   for (int i = 0; i < 20; i++) {   
     startMillis = millis(); // Start of sample window
@@ -198,7 +202,7 @@ int getAmbientSoundLevel()
       //Serial.print("sample: ");
       //Serial.println(sample);
 
-      if (sample < 1024.0 && sample > 0.0)  // toss out spurious readings
+      if (sample < 1024)  // toss out spurious readings
       {
         if (sample > signalMax)
         {
@@ -211,21 +215,20 @@ int getAmbientSoundLevel()
       }
     }
     peakToPeak = signalMax - signalMin;  // max - min = peak-peak amplitude
-    samples[i] = static_cast<double>(peakToPeak);
-     Serial.print("samples II: ");
-    Serial.println(samples[i]);
+    samples[i] = peakToPeak;
+    // Serial.print("samples II: ");
+   // Serial.println(samples[i]);
 
   }
   for (int i = 0; i < 20; i++) {
-  sampleAvg = static_cast<double>(sampleSum)/100;
-    sampleSum = static_cast<double>(sampleSum) + static_cast<double>(samples[i]);
+    sampleSum = sampleSum + samples[i];
   }
 
   sampleAvg = sampleSum/20; //1s sample avg
   Serial.print("sampleAvg: ");
   Serial.println(sampleAvg);
-  Serial.print("samples i: ");
-  Serial.println(samples[19]);
+  //Serial.print("samples i: ");
+  //Serial.println(samples[19]);
   //sampleAvg = (sampleAvg * bias) + (AmbientSoundLevel * (1- bias));
   FIRFilter_calc(&fir, sampleAvg);
   filteredOut=fir.out;
@@ -268,6 +271,7 @@ int getAmbientSoundLevel()
 
   }
   return filteredOut; //was sampleAvg
+  //return fir.out;
 }
 
 //function to initialise the circular buffer value
@@ -312,9 +316,13 @@ float FIRFilter_calc(FIRFilter *fir, float inputVal){
         }
         //The convolution process: Multyply the impulse response with the SHIFTED input sample and add it to the output
         fir->out=fir->out+fir->buff[sumIndex]*FIR_FILTER_IMPULSE_RESPONSE[i];
+            //Serial.print("inside FIRcalc aft convoluiton process fir->out: ");
+            //Serial.println(fir->out);
     }
 
     //return the filtered data
+    //Serial.print("inside FIRcalc before return out: ");
+    //Serial.println(fir->out);
     return out;
 
 }
